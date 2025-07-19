@@ -28,9 +28,9 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    customerName: user?.fullName || '',
-    customerEmail: user?.emailAddresses[0]?.emailAddress || '',
-    customerPhone: user?.phoneNumbers[0]?.phoneNumber || '60123456789', // Default phone number
+    customerName: '',
+    customerEmail: '',
+    customerPhone: '',
     amount: packageData?.price || 0,
     description: packageData?.name || '',
     subscriptionType: packageData?.id || '',
@@ -42,7 +42,7 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value || (name === 'customerPhone' ? '60123456789' : ''), // Default phone if cleared
+      [name]: value,
     }));
   };
 
@@ -51,6 +51,13 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
     setLoading(true);
 
     try {
+      // Validate phone number is provided
+      if (!formData.customerPhone.trim()) {
+        alert('Sila masukkan nombor telefon');
+        setLoading(false);
+        return;
+      }
+
       // Format phone number: remove any non-digit characters and ensure it starts with '60'
       let formattedPhone = formData.customerPhone.replace(/\D/g, '');
       // Remove leading '0' if present after '60'
@@ -59,6 +66,13 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
       }
       // Add '60' prefix if not present
       const phoneNumber = formattedPhone.startsWith('60') ? formattedPhone : `60${formattedPhone}`;
+
+      // Validate phone number length
+      if (phoneNumber.length < 10 || phoneNumber.length > 15) {
+        alert('Sila masukkan nombor telefon yang sah');
+        setLoading(false);
+        return;
+      }
 
       // Ensure amount is a number (in case it got converted to string somewhere)
       const numericAmount = typeof formData.amount === 'number' 
@@ -72,8 +86,6 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
         gateway: 'toyyibpay',
       };
 
-      console.log('Sending payment data:', paymentData);
-
       const response = await fetch('/api/payment/create', {
         method: 'POST',
         headers: {
@@ -82,20 +94,16 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
         body: JSON.stringify(paymentData),
       });
 
-      console.log('Payment API response status:', response.status);
       const result = await response.json();
-      console.log('Payment API response:', result);
 
       if (result.success) {
         // Redirect to payment gateway
         window.location.href = result.paymentUrl;
       } else {
-        console.error('Payment failed:', result);
         const errorMessage = result.error || result.message || 'Pembayaran gagal dibuat';
         alert('Ralat: ' + errorMessage);
       }
     } catch (error) {
-      console.error('Payment error:', error);
       alert('Ralat: Gagal memproses pembayaran. Sila cuba lagi atau hubungi sokongan pelanggan.');
     } finally {
       setLoading(false);
@@ -204,22 +212,7 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
         )}
       </div>
 
-      {/* Debug Information */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-        <h4 className="font-semibold text-yellow-800 mb-2">Debug Information</h4>
-        <pre className="text-xs text-yellow-700 overflow-auto">
-          {JSON.stringify({
-            packageData,
-            locationData,
-            formData,
-            userInfo: {
-              fullName: user?.fullName,
-              email: user?.emailAddresses[0]?.emailAddress,
-              phone: user?.phoneNumbers[0]?.phoneNumber
-            }
-          }, null, 2)}
-        </pre>
-      </div>
+
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid md:grid-cols-2 gap-6">
@@ -258,7 +251,7 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
 
         <div>
           <label htmlFor="customerPhone" className="block text-sm font-medium text-gray-700 mb-2">
-            Nombor Telefon
+            Nombor Telefon *
           </label>
           <input
             type="tel"
@@ -266,6 +259,7 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
             name="customerPhone"
             value={formData.customerPhone}
             onChange={handleInputChange}
+            required
             className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
             placeholder="01X-XXX XXXX"
           />
