@@ -283,8 +283,37 @@ export class ToyyibPayService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-      return result[0]; // Returns array, get first item
+      const responseText = await response.text();
+      
+      // Check if response is "No data found!" or similar error message
+      if (responseText.trim().includes('No data found') || responseText.trim() === '') {
+        // Return a default pending status for bills that are not found
+        return {
+          billCode: billCode,
+          billpaymentStatus: '0', // pending
+          billpaymentAmount: '0',
+          billpaymentInvoiceNo: '',
+          billpaymentDate: '',
+          billExternalReferenceNo: ''
+        };
+      }
+
+      try {
+        const result = JSON.parse(responseText);
+        return result[0]; // Returns array, get first item
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        console.error('Response text:', responseText);
+        // Return pending status if JSON parsing fails
+        return {
+          billCode: billCode,
+          billpaymentStatus: '0', // pending
+          billpaymentAmount: '0',
+          billpaymentInvoiceNo: '',
+          billpaymentDate: '',
+          billExternalReferenceNo: ''
+        };
+      }
     } catch (error) {
       console.error('Error getting bill status:', error);
       throw error;

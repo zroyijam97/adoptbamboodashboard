@@ -12,6 +12,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import './globals.css'
 
+// Import scheduler untuk auto-polling
+import '@/lib/scheduler'
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],

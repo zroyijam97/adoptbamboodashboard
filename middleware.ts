@@ -4,7 +4,9 @@ import { createRouteMatcher } from '@clerk/nextjs/server';
 const isProtectedRoute = createRouteMatcher([
   '/adminbamboo(.*)',
   '/payment(.*)',
-  '/api/payment(.*)',
+  '/api/payment/create',
+  '/api/payment/status',
+  // Note: /api/payment/callback is excluded as it's called by ToyyibPay without auth
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

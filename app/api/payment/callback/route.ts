@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { paymentManager } from '@/lib/payment';
 import { db } from '@/lib/db';
-import { adoptions, users, packages, locations, payments } from '@/lib/schema';
+import { adoptions, users, packages, locations, payments, growthTracking, environmentalData } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     // If payment is successful, create adoption record
     if (paymentStatus.status === 'success' && status === '1') {
+      console.log('Payment successful, creating adoption record...');
       try {
         // Get payment record with package and location info
         const paymentRecord = await db
@@ -63,75 +64,75 @@ export async function POST(request: NextRequest) {
           .where(eq(payments.referenceNo, referenceNo))
           .limit(1);
 
+        console.log('Payment record query result:', paymentRecord);
+
         if (paymentRecord.length > 0) {
           const payment = paymentRecord[0];
+          console.log('Payment record found:', {
+            userId: payment.userId,
+            packageType: payment.packageType,
+            locationId: payment.locationId,
+            amount: payment.amount
+          });
           
-          // Get user by Clerk ID
-          const userRecord = await db
-            .select()
-            .from(users)
-            .where(eq(users.clerkId, payment.userId))
-            .limit(1);
+          // Create adoption record using auto-create API
+          console.log('Creating adoption record using auto-create API...');
+          
+          try {
+            const adoptionResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/adoption/auto-create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                paymentReferenceNo: referenceNo
+              })
+            });
 
-          if (userRecord.length > 0) {
-            const user = userRecord[0];
+            const adoptionResult = await adoptionResponse.json();
             
-            // Get package info
-            let packageInfo = null;
-            if (payment.packageType) {
-              const packageRecord = await db
-                .select()
-                .from(packages)
-                .where(eq(packages.id, parseInt(payment.packageType)))
-                .limit(1);
-              
-              if (packageRecord.length > 0) {
-                packageInfo = packageRecord[0];
-              }
+            if (!adoptionResult.success) {
+              console.error('Failed to create adoption:', adoptionResult.error);
+              return NextResponse.json(
+                { 
+                  error: 'Payment successful but failed to create adoption record',
+                  details: adoptionResult.error
+                },
+                { status: 500 }
+              );
             }
 
-            // Get location info
-            let locationInfo = null;
-            if (payment.locationId) {
-              const locationRecord = await db
-                .select()
-                .from(locations)
-                .where(eq(locations.id, parseInt(payment.locationId)))
-                .limit(1);
-              
-              if (locationRecord.length > 0) {
-                locationInfo = locationRecord[0];
-              }
-            }
-
-            // Create adoption record with package information
-            const adoptionData = {
-              userId: user.id,
-              bambooPlantId: 1, // Default plant ID - you might want to create a new plant or use a different approach
-              adoptionDate: new Date(),
-              adoptionPrice: amount,
-              isActive: true,
-              packageId: packageInfo?.id || null,
-              packageName: packageInfo?.name || null,
-              packagePrice: packageInfo?.price || null,
-              packagePeriod: packageInfo?.period || null,
-              packageFeatures: packageInfo?.features || null,
-              locationId: locationInfo?.id || null,
-              locationName: locationInfo?.name || payment.locationName || null,
-            };
-
-            const newAdoption = await db
-              .insert(adoptions)
-              .values(adoptionData)
-              .returning();
-
-            console.log('Adoption record created:', newAdoption[0]);
+            console.log('Adoption created successfully:', adoptionResult.adoption);
+            
+            return NextResponse.json({ 
+              success: true, 
+              message: 'Payment and adoption processed successfully',
+              adoptionId: adoptionResult.adoption.id,
+              adoption: adoptionResult.adoption
+            });
+            
+          } catch (adoptionError) {
+            console.error('Auto-create adoption API error:', adoptionError);
+            return NextResponse.json(
+              { error: 'Payment successful but failed to create adoption record' },
+              { status: 500 }
+            );
           }
+        } else {
+          console.log('No payment record found for reference:', referenceNo);
         }
       } catch (adoptionError) {
         console.error('Error creating adoption record:', adoptionError);
+        if (adoptionError instanceof Error) {
+          console.error('Adoption error stack:', adoptionError.stack);
+        }
         // Don't fail the callback if adoption creation fails
       }
+    } else {
+      console.log('Payment not successful or status not 1:', {
+        paymentStatus: paymentStatus.status,
+        status: status
+      });
     }
 
     console.log('Payment callback processed successfully');

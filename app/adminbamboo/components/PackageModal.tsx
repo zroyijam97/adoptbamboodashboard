@@ -17,8 +17,10 @@ export default function PackageModal({ isOpen, onClose, onSave, editingPackage }
     period: 'monthly',
     features: [''],
     isActive: true,
-    sortOrder: 0
+    sortOrder: 0,
+    plantingLocationId: ''
   });
+  const [locations, setLocations] = useState<any[]>([]);
 
   useEffect(() => {
     if (editingPackage) {
@@ -27,9 +29,16 @@ export default function PackageModal({ isOpen, onClose, onSave, editingPackage }
         description: editingPackage.description || '',
         price: editingPackage.price || '',
         period: editingPackage.period || 'monthly',
-        features: editingPackage.features ? JSON.parse(editingPackage.features) : [''],
+        features: editingPackage.features ? (() => {
+          try {
+            return JSON.parse(editingPackage.features);
+          } catch (error) {
+            return [''];
+          }
+        })() : [''],
         isActive: editingPackage.isActive ?? true,
-        sortOrder: editingPackage.sortOrder || 0
+        sortOrder: editingPackage.sortOrder || 0,
+        plantingLocationId: editingPackage.plantingLocationId || ''
       });
     } else {
       setFormData({
@@ -39,10 +48,29 @@ export default function PackageModal({ isOpen, onClose, onSave, editingPackage }
         period: 'monthly',
         features: [''],
         isActive: true,
-        sortOrder: 0
+        sortOrder: 0,
+        plantingLocationId: ''
       });
     }
   }, [editingPackage, isOpen]);
+
+  useEffect(() => {
+    const fetchLocations = async () => {
+      try {
+        const response = await fetch('/api/admin/locations');
+        const data = await response.json();
+        if (data.success) {
+          setLocations(data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching locations:', err);
+      }
+    };
+
+    if (isOpen) {
+      fetchLocations();
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +184,25 @@ export default function PackageModal({ isOpen, onClose, onSave, editingPackage }
                 <option value="yearly">Tahunan</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Lokasi Penanaman
+            </label>
+            <select
+              value={formData.plantingLocationId}
+              onChange={(e) => setFormData(prev => ({ ...prev, plantingLocationId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              required
+            >
+              <option value="">Pilih Lokasi Penanaman</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name} - {location.address}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

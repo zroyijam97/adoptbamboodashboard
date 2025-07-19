@@ -39,7 +39,13 @@ export default function LocationModal({ isOpen, onClose, onSave, editingLocation
         currentCount: editingLocation.currentCount || '',
         soilType: editingLocation.soilType || '',
         areaCondition: editingLocation.areaCondition || '',
-        features: editingLocation.features ? JSON.parse(editingLocation.features) : [''],
+        features: editingLocation.features ? (() => {
+          try {
+            return JSON.parse(editingLocation.features);
+          } catch (error) {
+            return [''];
+          }
+        })() : [''],
         image: editingLocation.image || '',
         coordinates: editingLocation.coordinates || '',
         availability: editingLocation.availability || '',

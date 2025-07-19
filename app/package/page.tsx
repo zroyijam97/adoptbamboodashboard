@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import Link from 'next/link';
 
@@ -8,6 +8,43 @@ export default function PackagePage() {
   const { isSignedIn } = useUser();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedLocations, setSelectedLocations] = useState<{[key: string]: string}>({});
+  const [packages, setPackages] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPackagesAndLocations();
+  }, []);
+
+  const fetchPackagesAndLocations = async () => {
+    try {
+      // Fetch packages
+      const packagesResponse = await fetch('/api/admin/packages');
+      if (!packagesResponse.ok) {
+        throw new Error(`Failed to fetch packages: ${packagesResponse.status}`);
+      }
+      const packagesData = await packagesResponse.json();
+      
+      // Fetch locations
+      const locationsResponse = await fetch('/api/admin/locations');
+      if (!locationsResponse.ok) {
+        throw new Error(`Failed to fetch locations: ${locationsResponse.status}`);
+      }
+      const locationsData = await locationsResponse.json();
+      
+      if (packagesData.success) {
+        setPackages(packagesData.data.filter((pkg: any) => pkg.isActive));
+      }
+      
+      if (locationsData.success) {
+        setLocations(locationsData.data.filter((loc: any) => loc.isActive));
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Demo lokasi penanaman
   const plantingLocations = [
@@ -40,53 +77,32 @@ export default function PackagePage() {
     }
   ];
 
-  const packages = [
-    {
-      id: 'monthly',
-      name: 'Langganan Bulanan',
-      price: 'RM12',
-      period: '/bulan',
-      color: 'green',
-      popular: false,
-      features: [
-        'Akses ke laporan perkembangan buluh setiap bulan (ketinggian, usia, CO₂ diserap)',
-        'Gambar buluh terkini setiap bulan',
-        'Sijil digital buluh angkat (dengan nombor siri & lokasi unik)',
-        'Diskaun 5% untuk pembelian produk bambu BambooInnovasia'
-      ]
-    },
-    {
-      id: 'quarterly',
-      name: 'Langganan Suku Tahun',
-      price: 'RM35',
-      period: '/3 bulan',
-      color: 'blue',
-      popular: true,
-      features: [
-        'Semua dari pelan bulanan',
-        'Video pendek perkembangan buluh setiap 3 bulan',
-        'Laporan terperinci impak karbon',
-        'Akses kepada webinar khas "Sustainable Living with Bamboo"',
-        'Diskaun 10% produk dan cenderamata edisi khas'
-      ]
-    },
-    {
-      id: 'annual',
-      name: 'Langganan Tahunan Premium',
-      price: 'RM120',
-      period: '/tahun',
-      color: 'purple',
-      popular: false,
-      features: [
-        'Semua dari pelan suku tahun',
-        'Welcome kit eksklusif: sijil bercetak, pin bambu, dan cenderamata eco-friendly',
-        'Penanaman 2 buluh tambahan atas nama adopter (tanpa caj)',
-        'Akses ke peta interaktif lokasi buluh secara real-time',
-        'Penyenaraian nama dalam "Wall of Contributors" di laman web rasmi',
-        'Baucar RM20 untuk sebarang produk Bambooinnovasia'
-      ]
+  // Get package location details
+  const getPackageLocation = (packageData: any) => {
+    if (!packageData.plantingLocationId) return null;
+    // Convert both to string for comparison to handle type mismatches
+    return locations.find(loc => String(loc.id) === String(packageData.plantingLocationId));
+  };
+
+  // Get period display text
+  const getPeriodText = (period: string) => {
+    switch (period) {
+      case 'monthly': return '/bulan';
+      case 'quarterly': return '/3 bulan';
+      case 'yearly': return '/tahun';
+      default: return `/${period}`;
     }
-  ];
+  };
+
+  // Get color for package based on period
+  const getPackageColor = (period: string) => {
+    switch (period) {
+      case 'monthly': return 'green';
+      case 'quarterly': return 'blue';
+      case 'yearly': return 'purple';
+      default: return 'green';
+    }
+  };
 
   const getColorClasses = (color: string, type: 'bg' | 'border' | 'text' | 'button') => {
     const colorMap = {
@@ -120,15 +136,16 @@ export default function PackagePage() {
   };
 
   const handlePackageSelect = (pkg: any) => {
-    const selectedLocation = selectedLocations[pkg.id];
-    if (!selectedLocation) {
-      alert('Sila pilih lokasi penanaman terlebih dahulu');
-      return;
-    }
-
     if (isSignedIn) {
+      // Check if location is selected
+      const selectedLocationId = selectedLocations[pkg.id];
+      if (!selectedLocationId) {
+        alert('Sila pilih lokasi penanaman terlebih dahulu.');
+        return;
+      }
+      
       // Redirect to payment page with package and location data
-      const paymentUrl = `/payment?package=${pkg.id}&name=${encodeURIComponent(pkg.name)}&price=${pkg.price}&period=${encodeURIComponent(pkg.period)}&location=${selectedLocation}`;
+      const paymentUrl = `/payment?package=${pkg.id}&name=${encodeURIComponent(pkg.name)}&price=${pkg.price}&period=${encodeURIComponent(pkg.period)}&location=${selectedLocationId}`;
       window.location.href = paymentUrl;
     } else {
       // Redirect to sign up
@@ -187,115 +204,153 @@ export default function PackagePage() {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
-          {packages.map((pkg) => (
-            <div
-              key={pkg.id}
-              className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-300 hover:shadow-xl ${
-                pkg.popular ? 'border-blue-300 scale-105' : 'border-gray-200'
-              } ${selectedPlan === pkg.id ? 'ring-4 ring-blue-200' : ''}`}
-            >
-              {pkg.popular && (
-                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-semibold">
-                    Paling Popular
-                  </span>
-                </div>
-              )}
-
-              <div className="p-8">
-                {/* Package Header */}
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-4">
-                    {pkg.name}
-                  </h3>
-                  <div className="flex items-baseline justify-center">
-                    <span className={`text-4xl font-bold ${getColorClasses(pkg.color, 'text')}`}>
-                      {pkg.price}
-                    </span>
-                    <span className="text-gray-500 ml-2">{pkg.period}</span>
-                  </div>
-                </div>
-
-                {/* Features */}
-                <div className="space-y-4 mb-8">
-                  {pkg.features.map((feature, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className={`w-5 h-5 rounded-full ${getColorClasses(pkg.color, 'bg')} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                        <svg className={`w-3 h-3 ${getColorClasses(pkg.color, 'text')}`} fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <span className="text-gray-700 text-sm leading-relaxed">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Location Selection */}
-                <div className="mb-8">
-                  <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                    📍 Pilih Lokasi Penanaman
-                  </h4>
-                  <div className="space-y-3">
-                    {plantingLocations.map((location) => (
-                      <div
-                        key={location.id}
-                        className={`border-2 rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-                          selectedLocations[pkg.id] === location.id
-                            ? `${getColorClasses(pkg.color, 'border')} ${getColorClasses(pkg.color, 'bg')}`
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => handleLocationSelect(pkg.id, location.id)}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="text-2xl">{location.image}</div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="font-semibold text-gray-800 text-sm">
-                                {location.name}
-                              </h5>
-                              <div className={`w-4 h-4 rounded-full border-2 ${
-                                selectedLocations[pkg.id] === location.id
-                                  ? `${getColorClasses(pkg.color, 'border')} ${getColorClasses(pkg.color, 'bg')}`
-                                  : 'border-gray-300'
-                              }`}>
-                                {selectedLocations[pkg.id] === location.id && (
-                                  <div className="w-full h-full rounded-full bg-white scale-50"></div>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-600 mb-2">{location.description}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">{location.coordinates}</span>
-                              <span className="text-xs text-green-600 font-medium">{location.availability}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {location.features.map((feature, idx) => (
-                                <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                  {feature}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* CTA Button */}
-                <button
-                  onClick={() => handlePackageSelect(pkg)}
-                  className={`w-full py-4 px-6 rounded-xl text-white font-semibold transition-colors ${getColorClasses(pkg.color, 'button')} ${
-                    !selectedLocations[pkg.id] ? 'opacity-50 cursor-not-allowed' : ''
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Memuat pakej...</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            {packages.map((pkg) => {
+              const packageLocation = getPackageLocation(pkg);
+              const packageColor = getPackageColor(pkg.period);
+              let packageFeatures = [];
+              try {
+                // Check if features is already an array or needs parsing
+                if (Array.isArray(pkg.features)) {
+                  packageFeatures = pkg.features;
+                } else if (typeof pkg.features === 'string') {
+                  packageFeatures = JSON.parse(pkg.features);
+                } else {
+                  packageFeatures = [];
+                }
+              } catch (error) {
+                console.error('Error parsing package features:', error, 'Features data:', pkg.features);
+                packageFeatures = [];
+              }
+              
+              return (
+                <div
+                  key={pkg.id}
+                  className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-300 hover:shadow-xl border-gray-200 ${
+                    selectedPlan === pkg.id ? 'ring-4 ring-blue-200' : ''
                   }`}
                 >
-                  {isSignedIn ? 'Pilih Pelan Ini' : 'Daftar & Pilih Pelan'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+                  <div className="p-8">
+                    {/* Package Header */}
+                    <div className="text-center mb-8">
+                      <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                        {pkg.name}
+                      </h3>
+                      <div className="flex items-baseline justify-center">
+                        <span className={`text-4xl font-bold ${getColorClasses(packageColor, 'text')}`}>
+                          RM{pkg.price}
+                        </span>
+                        <span className="text-gray-500 ml-2">{getPeriodText(pkg.period)}</span>
+                      </div>
+                    </div>
+
+                    {/* Features */}
+                    <div className="space-y-4 mb-8">
+                      {packageFeatures.map((feature: string, index: number) => (
+                        <div key={index} className="flex items-start space-x-3">
+                          <div className={`w-5 h-5 rounded-full ${getColorClasses(packageColor, 'bg')} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                            <svg className={`w-3 h-3 ${getColorClasses(packageColor, 'text')}`} fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <span className="text-gray-700 text-sm leading-relaxed">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Location Selection Dropdown */}
+                    <div className="mb-8">
+                      <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                        📍 Pilih Lokasi Penanaman
+                      </h4>
+                      <div className="mb-4">
+                        <select
+                          value={selectedLocations[pkg.id] || ''}
+                          onChange={(e) => handleLocationSelect(pkg.id, e.target.value)}
+                          className={`w-full p-3 border-2 rounded-xl ${getColorClasses(packageColor, 'border')} focus:outline-none focus:ring-2 focus:ring-opacity-50 ${getColorClasses(packageColor, 'text')}`}
+                        >
+                          <option value="">Pilih lokasi penanaman...</option>
+                          {locations.map((location) => (
+                            <option key={location.id} value={String(location.id)}>
+                              {location.name} - {location.address || 'Alamat tidak tersedia'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Selected Location Details */}
+                      {selectedLocations[pkg.id] && (() => {
+                        const selectedLocation = locations.find(loc => String(loc.id) === String(selectedLocations[pkg.id]));
+                        return selectedLocation ? (
+                          <div className={`border-2 rounded-xl p-4 ${getColorClasses(packageColor, 'border')} ${getColorClasses(packageColor, 'bg')}`}>
+                            <div className="flex items-start space-x-3">
+                              <div className="text-2xl">🌳</div>
+                              <div className="flex-1">
+                                <h5 className="font-semibold text-gray-800 text-sm mb-2">
+                                  {selectedLocation.name}
+                                </h5>
+                                <p className="text-xs text-gray-600 mb-2">{selectedLocation.address || 'Alamat tidak tersedia'}</p>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-gray-500">{selectedLocation.coordinates || 'Koordinat tidak tersedia'}</span>
+                                  <span className="text-xs text-green-600 font-medium">Tersedia</span>
+                                </div>
+                                {selectedLocation.features && (() => {
+                                  try {
+                                    let features = [];
+                                    // Check if features is already an array or needs parsing
+                                    if (Array.isArray(selectedLocation.features)) {
+                                      features = selectedLocation.features;
+                                    } else if (typeof selectedLocation.features === 'string') {
+                                      features = JSON.parse(selectedLocation.features);
+                                    }
+                                    
+                                    return (
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {features.map((feature: string, idx: number) => (
+                                          <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                            {feature}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    );
+                                  } catch (error) {
+                                    console.error('Error parsing location features:', error, 'Features data:', selectedLocation.features);
+                                    return null;
+                                  }
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                      
+                      {/* Default message when no location selected */}
+                      {!selectedLocations[pkg.id] && (
+                        <div className="border-2 border-gray-200 rounded-xl p-4">
+                          <p className="text-gray-500 text-sm text-center">Sila pilih lokasi penanaman dari dropdown di atas</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* CTA Button */}
+                    <button
+                      onClick={() => handlePackageSelect(pkg)}
+                      className={`w-full py-4 px-6 rounded-xl text-white font-semibold transition-colors ${getColorClasses(packageColor, 'button')}`}
+                    >
+                      {isSignedIn ? 'Pilih Pelan Ini' : 'Daftar & Pilih Pelan'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Early Bird Bonus */}
         <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl p-8 border-2 border-yellow-200 mb-12">

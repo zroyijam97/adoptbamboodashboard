@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { formatCurrency } from '@/lib/payment';
+import { CurrencyFormatter } from '@/lib/formatters';
 
 interface PaymentFormProps {
   packageData?: {
     id: string;
     name: string;
+    description?: string;
     price: number;
     period: string;
+    features?: string[] | string;
   };
   locationData?: {
     id: string;
@@ -17,6 +19,8 @@ interface PaymentFormProps {
     description: string;
     coordinates: string;
     image: string;
+    address?: string;
+    features?: string[] | string;
   } | null;
 }
 
@@ -87,11 +91,12 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
         window.location.href = result.paymentUrl;
       } else {
         console.error('Payment failed:', result);
-        alert('Ralat: ' + (result.error || 'Pembayaran gagal dibuat'));
+        const errorMessage = result.error || result.message || 'Pembayaran gagal dibuat';
+        alert('Ralat: ' + errorMessage);
       }
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Ralat: Gagal memproses pembayaran');
+      alert('Ralat: Gagal memproses pembayaran. Sila cuba lagi atau hubungi sokongan pelanggan.');
     } finally {
       setLoading(false);
     }
@@ -108,12 +113,93 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
             <h3 className="text-xl font-semibold text-green-800 mb-2">
               {packageData.name}
             </h3>
-            <p className="text-3xl font-bold text-green-600">
-              {formatCurrency(packageData.price)}
-              <span className="text-lg font-normal text-gray-600">
-                {packageData.period}
+            {packageData.description && (
+              <p className="text-gray-700 mb-3">{packageData.description}</p>
+            )}
+            <p className="text-3xl font-bold text-green-600 mb-4">
+              {CurrencyFormatter.format(packageData.price / 100)}
+              <span className="text-lg font-normal text-gray-600 ml-2">
+                / {packageData.period === 'quarterly' ? '3 bulan' : packageData.period === 'annual' ? '12 bulan' : packageData.period}
               </span>
             </p>
+            
+            {/* Package Features */}
+            {packageData.features && (() => {
+              let features = [];
+              try {
+                if (Array.isArray(packageData.features)) {
+                  features = packageData.features;
+                } else if (typeof packageData.features === 'string') {
+                  features = JSON.parse(packageData.features);
+                }
+              } catch (error) {
+                console.error('Error parsing package features:', error);
+              }
+              
+              return features.length > 0 ? (
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-green-800 mb-2">Termasuk:</h4>
+                  <ul className="space-y-1">
+                    {features.map((feature: string, idx: number) => (
+                      <li key={idx} className="flex items-center text-sm text-green-700">
+                        <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null;
+            })()}
+            
+            {/* Location Information */}
+            {locationData && (
+              <div className="border-t border-green-200 pt-4">
+                <h4 className="text-sm font-semibold text-green-800 mb-2">Lokasi Penanaman:</h4>
+                <div className="bg-white rounded-lg p-3">
+                  <div className="flex items-start space-x-3">
+                    <div className="text-lg">🌳</div>
+                    <div className="flex-1">
+                      <h5 className="font-medium text-gray-800 text-sm">{locationData.name}</h5>
+                      {locationData.address && (
+                        <p className="text-xs text-gray-600 mt-1">{locationData.address}</p>
+                      )}
+                      {locationData.description && (
+                        <p className="text-xs text-gray-600 mt-1">{locationData.description}</p>
+                      )}
+                      {locationData.coordinates && (
+                        <p className="text-xs text-gray-500 mt-1">Koordinat: {locationData.coordinates}</p>
+                      )}
+                      
+                      {/* Location Features */}
+                      {locationData.features && (() => {
+                        let features = [];
+                        try {
+                          if (Array.isArray(locationData.features)) {
+                            features = locationData.features;
+                          } else if (typeof locationData.features === 'string') {
+                            features = JSON.parse(locationData.features);
+                          }
+                        } catch (error) {
+                          console.error('Error parsing location features:', error);
+                        }
+                        
+                        return features.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {features.map((feature: string, idx: number) => (
+                              <span key={idx} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -204,7 +290,7 @@ export default function PaymentForm({ packageData, locationData }: PaymentFormPr
           <div className="flex justify-between items-center text-lg">
             <span className="font-medium text-gray-700">Jumlah Bayaran:</span>
             <span className="font-bold text-green-600 text-2xl">
-              {formatCurrency(formData.amount)}
+              {CurrencyFormatter.format(formData.amount / 100)}
             </span>
           </div>
         </div>

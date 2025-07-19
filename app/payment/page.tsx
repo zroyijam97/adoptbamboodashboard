@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import PaymentForm from './components/PaymentForm';
@@ -8,36 +8,33 @@ import PaymentForm from './components/PaymentForm';
 function PaymentPageContent() {
   const { isSignedIn } = useUser();
   const searchParams = useSearchParams();
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Get package data from URL parameters
   const packageId = searchParams.get('package');
   const packageName = searchParams.get('name');
   const packagePrice = searchParams.get('price');
   const packagePeriod = searchParams.get('period');
-  const selectedLocation = searchParams.get('location');
+  const selectedLocationId = searchParams.get('location');
 
-  // Location data mapping
-  const locations = {
-    'kuala-lumpur': {
-      id: 'kuala-lumpur',
-      name: 'Hutan Simpan Bukit Lagong, Kuala Lumpur',
-      description: 'Kawasan hutan simpan seluas 7,200 hektar dengan ekosistem yang kaya',
-      coordinates: '3.2839°N, 101.6142°E',
-      image: '🌳'
-    },
-    'pahang': {
-      id: 'pahang',
-      name: 'Ladang Bambu Berkelanjutan, Bentong Pahang',
-      description: 'Ladang bambu komersial dengan program konservasi aktif',
-      coordinates: '3.5227°N, 101.9085°E',
-      image: '🎋'
-    },
-    'johor': {
-      id: 'johor',
-      name: 'Taman Eko Bambu, Kluang Johor',
-      description: 'Taman eko-pelancongan dengan fokus pendidikan alam sekitar',
-      coordinates: '2.0301°N, 103.3185°E',
-      image: '🌿'
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    try {
+      const response = await fetch('/api/admin/locations');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setLocations(data.data.filter((loc: any) => loc.isActive));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,9 +64,17 @@ function PaymentPageContent() {
       }
     : dummyPackage; // Use dummy data for testing
 
-  const locationData = selectedLocation && locations[selectedLocation as keyof typeof locations]
-    ? locations[selectedLocation as keyof typeof locations]
+  const locationData = selectedLocationId && locations.length > 0
+    ? locations.find(loc => String(loc.id) === String(selectedLocationId))
     : null;
+
+  // Debug logging
+  console.log('Payment page debug:', {
+    selectedLocationId,
+    locations: locations.map(loc => ({ id: loc.id, name: loc.name })),
+    locationData,
+    selectedPackage
+  });
 
   if (!isSignedIn) {
     return (
@@ -90,6 +95,17 @@ function PaymentPageContent() {
           >
             Log Masuk
           </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat data pembayaran...</p>
         </div>
       </div>
     );

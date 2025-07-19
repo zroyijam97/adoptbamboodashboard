@@ -15,6 +15,7 @@ export default function AdoptionModal({ isOpen, onClose, onSave, editingAdoption
     packageName: '',
     locationName: '',
     isActive: true,
+    subscriptionImage: '',
   });
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function AdoptionModal({ isOpen, onClose, onSave, editingAdoption
         packageName: editingAdoption.adoption.packageName || '',
         locationName: editingAdoption.adoption.locationName || '',
         isActive: editingAdoption.adoption.isActive || false,
+        subscriptionImage: editingAdoption.adoption.subscriptionImage || '',
       });
     } else {
       setFormData({
@@ -31,6 +33,7 @@ export default function AdoptionModal({ isOpen, onClose, onSave, editingAdoption
         packageName: '',
         locationName: '',
         isActive: true,
+        subscriptionImage: '',
       });
     }
   }, [editingAdoption]);
@@ -109,6 +112,31 @@ export default function AdoptionModal({ isOpen, onClose, onSave, editingAdoption
               onChange={(e) => setFormData(prev => ({ ...prev, locationName: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Subscription Image URL
+            </label>
+            <input
+              type="url"
+              value={formData.subscriptionImage}
+              onChange={(e) => setFormData(prev => ({ ...prev, subscriptionImage: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="https://example.com/image.jpg"
+            />
+            {formData.subscriptionImage && (
+              <div className="mt-2">
+                <img 
+                  src={formData.subscriptionImage} 
+                  alt="Subscription Preview" 
+                  className="w-full h-32 object-cover rounded-md border"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center">

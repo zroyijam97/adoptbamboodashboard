@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { paymentManager, generateReferenceNo, formatCurrency, type PaymentRequest } from '@/lib/payment';
 import { db } from '@/lib/db';
-import { payments } from '@/lib/schema';
+import { payments, packages, locations } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,11 +45,29 @@ export async function POST(request: NextRequest) {
       userId
     });
 
-    // Validate required fields
+    // Validate required fields including package and location
     if (!amount || !description || !customerName || !customerEmail) {
       console.error('Missing required fields:', { amount, description, customerName, customerEmail });
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Missing required fields: amount, description, customerName, customerEmail' },
+        { status: 400 }
+      );
+    }
+
+    // Validate package type is required
+    if (!subscriptionType) {
+      console.error('Missing package type:', { subscriptionType });
+      return NextResponse.json(
+        { error: 'Package type is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate location is required
+    if (!plantingLocation) {
+      console.error('Missing planting location:', { plantingLocation });
+      return NextResponse.json(
+        { error: 'Planting location is required' },
         { status: 400 }
       );
     }
@@ -71,6 +90,94 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid phone number format' },
         { status: 400 }
+      );
+    }
+
+    // Validate package and location data directly
+    try {
+      // Validate package exists
+      if (subscriptionType) {
+        let packageQuery = await db
+          .select()
+          .from(packages)
+          .where(eq(packages.period, subscriptionType))
+          .limit(1);
+        
+        if (packageQuery.length === 0 && !isNaN(parseInt(subscriptionType))) {
+          packageQuery = await db
+            .select()
+            .from(packages)
+            .where(eq(packages.id, parseInt(subscriptionType)))
+            .limit(1);
+        }
+        
+        if (packageQuery.length === 0) {
+          console.error('Package not found:', subscriptionType);
+          return NextResponse.json(
+            { error: `Package '${subscriptionType}' not found` },
+            { status: 400 }
+          );
+        }
+        
+        const packageRecord = packageQuery[0];
+        if (!packageRecord.isActive) {
+          console.error('Package not active:', subscriptionType);
+          return NextResponse.json(
+            { error: `Package '${packageRecord.name}' is not active` },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Validate location exists
+      if (plantingLocation) {
+        let locationQuery = await db
+          .select()
+          .from(locations)
+          .where(eq(locations.name, plantingLocation))
+          .limit(1);
+        
+        if (locationQuery.length === 0 && !isNaN(parseInt(plantingLocation))) {
+          locationQuery = await db
+            .select()
+            .from(locations)
+            .where(eq(locations.id, parseInt(plantingLocation)))
+            .limit(1);
+        }
+        
+        if (locationQuery.length === 0) {
+          console.error('Location not found:', plantingLocation);
+          return NextResponse.json(
+            { error: `Location '${plantingLocation}' not found` },
+            { status: 400 }
+          );
+        }
+        
+        const locationRecord = locationQuery[0];
+        if (!locationRecord.isActive) {
+          console.error('Location not active:', plantingLocation);
+          return NextResponse.json(
+            { error: `Location '${locationRecord.name}' is not active` },
+            { status: 400 }
+          );
+        }
+        
+        // Check location capacity
+        if (locationRecord.capacity && locationRecord.currentCount !== null && locationRecord.currentCount >= locationRecord.capacity) {
+          console.error('Location at capacity:', plantingLocation);
+          return NextResponse.json(
+            { error: `Location '${locationRecord.name}' is at full capacity` },
+            { status: 400 }
+          );
+        }
+      }
+
+      console.log('Validation successful for package:', subscriptionType, 'and location:', plantingLocation);
+    } catch (validationError) {
+      console.error('Validation error:', validationError);
+      return NextResponse.json(
+        { error: 'Failed to validate payment data' },
+        { status: 500 }
       );
     }
 

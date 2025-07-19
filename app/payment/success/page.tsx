@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { CurrencyFormatter } from '@/lib/formatters';
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
@@ -15,6 +16,37 @@ function PaymentSuccessContent() {
 
   useEffect(() => {
     const checkPaymentStatus = async () => {
+      // First, notify the system that user has reached the success page
+      if ((referenceNo || billCode) && status) {
+        try {
+          console.log('Notifying system of success page visit:', { referenceNo, billCode, status });
+          const visitResponse = await fetch('/api/payment/success-visit', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              referenceNo,
+              billCode,
+              status
+            })
+          });
+          
+          const visitResult = await visitResponse.json();
+          console.log('Success page visit result:', visitResult);
+          
+          if (visitResult.success && visitResult.payment) {
+            setPaymentDetails(visitResult.payment);
+            setPaymentStatus(visitResult.payment.status === 'success' ? 'success' : 'failed');
+            return; // Exit early if we got the result from success visit API
+          }
+        } catch (error) {
+          console.error('Error notifying success page visit:', error);
+          // Continue with normal flow if success visit API fails
+        }
+      }
+
+      // Fallback to original payment status checking
       if (billCode) {
         try {
           const response = await fetch(`/api/payment/status?paymentId=${billCode}&gateway=toyyibpay`);
@@ -39,7 +71,7 @@ function PaymentSuccessContent() {
     };
 
     checkPaymentStatus();
-  }, [billCode, status]);
+  }, [billCode, status, referenceNo]);
 
   if (paymentStatus === 'loading') {
     return (
@@ -83,7 +115,7 @@ function PaymentSuccessContent() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Jumlah Dibayar:</span>
-                    <span className="font-medium">RM {paymentDetails.paidAmount || paymentDetails.amount}</span>
+                    <span className="font-medium">{CurrencyFormatter.format((paymentDetails.paidAmount || paymentDetails.amount) / 100)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tarikh Pembayaran:</span>
@@ -91,6 +123,24 @@ function PaymentSuccessContent() {
                       {paymentDetails.paidDate ? new Date(paymentDetails.paidDate).toLocaleDateString('ms-MY') : 'Hari ini'}
                     </span>
                   </div>
+                  {paymentDetails.userId && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">ID Pengguna:</span>
+                      <span className="font-medium text-xs">{paymentDetails.userId}</span>
+                    </div>
+                  )}
+                  {paymentDetails.packageType && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Jenis Pakej:</span>
+                      <span className="font-medium">{paymentDetails.packageType}</span>
+                    </div>
+                  )}
+                  {(paymentDetails.locationName || paymentDetails.locationId) && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Lokasi:</span>
+                      <span className="font-medium">{paymentDetails.locationName || paymentDetails.locationId}</span>
+                    </div>
+                  )}
                   {paymentDetails.transactionId && (
                     <div className="flex justify-between">
                       <span className="text-gray-600">ID Transaksi:</span>

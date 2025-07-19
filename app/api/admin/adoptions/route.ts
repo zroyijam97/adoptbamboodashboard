@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { adoptionId, isActive, adoptionPrice, packageName, locationName } = body;
+    const { adoptionId, isActive, adoptionPrice, packageName, locationName, subscriptionImage } = body;
 
     if (!adoptionId) {
       return NextResponse.json({ error: 'Adoption ID is required' }, { status: 400 });
@@ -79,7 +79,8 @@ export async function PUT(request: NextRequest) {
         isActive,
         adoptionPrice,
         packageName,
-        locationName
+        locationName,
+        subscriptionImage
       })
       .where(eq(adoptions.id, adoptionId))
       .returning();

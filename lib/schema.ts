@@ -75,6 +75,8 @@ export const adoptions = pgTable('adoptions', {
   adoptionPrice: text('adoption_price'), // changed to text to match payments
   isActive: boolean('is_active').default(true),
   certificateIssued: boolean('certificate_issued').default(false),
+  paymentReferenceNo: text('payment_reference_no').unique(), // link to payment record
+  subscriptionImage: text('subscription_image'), // URL to subscription image
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -132,6 +134,7 @@ export const packages = pgTable('packages', {
   price: text('price').notNull(), // changed to text to match API
   period: text('period').notNull(), // monthly, quarterly, yearly
   features: text('features'), // JSON string of features array
+  plantingLocationId: integer('planting_location_id').references(() => locations.id), // reference to planting location
   isActive: boolean('is_active').default(true),
   sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at').defaultNow(),

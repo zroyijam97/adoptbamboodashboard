@@ -5,6 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import PackageModal from './components/PackageModal';
+import { CurrencyFormatter } from '@/lib/formatters';
 import LocationModal from './components/LocationModal';
 import UserModal from './components/UserModal';
 import AdoptionModal from './components/AdoptionModal';
@@ -222,12 +223,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ms-MY', {
-      style: 'currency',
-      currency: 'MYR'
-    }).format(amount);
-  };
+
 
   // Chart data
   const revenueData = [
@@ -388,7 +384,7 @@ export default function AdminDashboard() {
                 <div className="ml-5 w-0 flex-1">
                   <dl>
                     <dt className="text-sm font-medium text-gray-500 truncate">Total Revenue</dt>
-                    <dd className="text-2xl font-bold text-gray-900">{formatCurrency(analytics.overview.totalRevenue)}</dd>
+                    <dd className="text-2xl font-bold text-gray-900">{CurrencyFormatter.format(analytics.overview.totalRevenue)}</dd>
                     <dd className="text-xs text-orange-600 font-medium">Malaysian Ringgit</dd>
                   </dl>
                 </div>
@@ -497,7 +493,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg shadow-sm">
                   <span className="text-sm font-medium text-gray-600">Revenue Today</span>
-                  <span className="text-lg font-bold text-blue-600">{formatCurrency(analytics.daily.revenue)}</span>
+                  <span className="text-lg font-bold text-blue-600">{CurrencyFormatter.format(analytics.daily.revenue)}</span>
                 </div>
               </div>
             </div>
@@ -521,7 +517,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg shadow-sm">
                   <span className="text-sm font-medium text-gray-600">Revenue This Month</span>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(analytics.monthly.revenue)}</span>
+                  <span className="text-lg font-bold text-green-600">{CurrencyFormatter.format(analytics.monthly.revenue)}</span>
                 </div>
               </div>
             </div>
@@ -545,7 +541,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white rounded-lg shadow-sm">
                   <span className="text-sm font-medium text-gray-600">Revenue This Year</span>
-                  <span className="text-lg font-bold text-purple-600">{formatCurrency(analytics.yearly.revenue)}</span>
+                  <span className="text-lg font-bold text-purple-600">{CurrencyFormatter.format(analytics.yearly.revenue)}</span>
                 </div>
               </div>
             </div>
@@ -589,14 +585,14 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                        {adoption.plant?.plantCode || 'N/A'}
+                        {adoption.plant?.plantCode || `BAMBOO-${adoption.adoption.id.toString().padStart(6, '0')}`}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       {new Date(adoption.adoption.adoptionDate).toLocaleDateString('ms-MY')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">
-                      {formatCurrency(parseFloat(adoption.adoption.adoptionPrice || '0'))}
+                      {CurrencyFormatter.format(parseFloat(adoption.adoption.adoptionPrice || '0') / 100)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
@@ -683,7 +679,7 @@ export default function AdminDashboard() {
                           {userRecord.totalAdoptions}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatCurrency(parseFloat(userRecord.totalSpent || '0'))}
+                          {CurrencyFormatter.format(parseFloat(userRecord.totalSpent || '0'))}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {userRecord.activeAdoptions}
@@ -780,7 +776,7 @@ export default function AdminDashboard() {
                           {adoptionRecord.adoption.locationName || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatCurrency(parseFloat(adoptionRecord.adoption.adoptionPrice || '0'))}
+                          {CurrencyFormatter.format(parseFloat(adoptionRecord.adoption.adoptionPrice || '0')/100)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(adoptionRecord.adoption.adoptionDate).toLocaleDateString('ms-MY')}
@@ -862,7 +858,7 @@ export default function AdminDashboard() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Harga:</span>
-                      <span className="font-bold text-green-600">RM {pkg.price}</span>
+                      <span className="font-bold text-green-600">{CurrencyFormatter.format(pkg.price)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-500">Tempoh:</span>
@@ -881,9 +877,15 @@ export default function AdminDashboard() {
                     <div className="mt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Ciri-ciri:</h4>
                       <ul className="text-xs text-gray-600 space-y-1">
-                        {JSON.parse(pkg.features).map((feature: string, index: number) => (
-                          <li key={index}>• {feature}</li>
-                        ))}
+                        {(() => {
+                          try {
+                            return JSON.parse(pkg.features).map((feature: string, index: number) => (
+                              <li key={index}>• {feature}</li>
+                            ));
+                          } catch (error) {
+                            return <li>Invalid features data</li>;
+                          }
+                        })()}
                       </ul>
                     </div>
                   )}
@@ -982,9 +984,15 @@ export default function AdminDashboard() {
                     <div className="mt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Kelebihan:</h4>
                       <ul className="text-xs text-gray-600 space-y-1">
-                        {JSON.parse(location.features).map((feature: string, index: number) => (
-                          <li key={index}>• {feature}</li>
-                        ))}
+                        {(() => {
+                          try {
+                            return JSON.parse(location.features).map((feature: string, index: number) => (
+                              <li key={index}>• {feature}</li>
+                            ));
+                          } catch (error) {
+                            return <li>Invalid features data</li>;
+                          }
+                        })()}
                       </ul>
                     </div>
                   )}

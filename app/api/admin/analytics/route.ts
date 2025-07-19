@@ -100,20 +100,20 @@ export async function GET() {
         overview: {
           totalSubscribers: totalSubscribers[0]?.count || 0,
           totalAdoptions: totalAdoptions[0]?.count || 0,
-          totalRevenue: parseFloat(totalRevenue[0]?.total || '0'),
+          totalRevenue: parseFloat(totalRevenue[0]?.total || '0') / 100,
           totalBambooPlants: totalBambooPlants[0]?.count || 0,
         },
         daily: {
           adoptions: dailyAdoptions[0]?.count || 0,
-          revenue: parseFloat(dailyAdoptions[0]?.revenue || '0'),
+          revenue: parseFloat(dailyAdoptions[0]?.revenue || '0') / 100,
         },
         monthly: {
           adoptions: monthlyAdoptions[0]?.count || 0,
-          revenue: parseFloat(monthlyAdoptions[0]?.revenue || '0'),
+          revenue: parseFloat(monthlyAdoptions[0]?.revenue || '0') / 100,
         },
         yearly: {
           adoptions: yearlyAdoptions[0]?.count || 0,
-          revenue: parseFloat(yearlyAdoptions[0]?.revenue || '0'),
+          revenue: parseFloat(yearlyAdoptions[0]?.revenue || '0') / 100,
         },
         recentAdoptions: recentAdoptions,
       }

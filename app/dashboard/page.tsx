@@ -1,7 +1,9 @@
 'use client';
 
 import { useUser } from '@clerk/nextjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { CurrencyFormatter } from '@/lib/formatters';
 
 interface UserStats {
   totalAdoptions: number;
@@ -40,11 +42,13 @@ interface Adoption {
   plant: {
     id: number;
     plantCode: string;
+    species: string;
     location: string;
     currentHeight: string;
-    species: string;
     status: string;
     co2Absorbed: string;
+    daysSincePlanting?: number;
+    plantingDate?: string;
   } | null;
 }
 
@@ -58,10 +62,13 @@ interface PackageAnalytics {
 
 export default function Dashboard() {
   const { user, isLoaded } = useUser();
+  const router = useRouter();
+  const myBambooRef = useRef<HTMLDivElement>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [adoptions, setAdoptions] = useState<Adoption[]>([]);
   const [packageAnalytics, setPackageAnalytics] = useState<PackageAnalytics>({});
   const [loading, setLoading] = useState(true);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
 
   useEffect(() => {
     if (isLoaded && user) {
@@ -87,6 +94,43 @@ export default function Dashboard() {
     }
   };
 
+  const downloadCertificate = async (adoptionId: number, plantCode: string) => {
+    try {
+      const response = await fetch(`/api/certificate/download?adoptionId=${adoptionId}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `bamboo-adoption-certificate-${plantCode}-${adoptionId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Failed to download certificate. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error downloading certificate:', error);
+      alert('Failed to download certificate. Please try again.');
+    }
+  };
+
+  const handleAdoptNewBamboo = () => {
+    router.push('/package');
+  };
+
+  const handleViewReports = () => {
+    if (myBambooRef.current) {
+      myBambooRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleDownloadCertificateModal = () => {
+    setShowCertificateModal(true);
+  };
+
   if (!isLoaded || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center">
@@ -103,12 +147,17 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Welcome Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-green-800 mb-2">
-            Welcome back, {user?.firstName || 'Bamboo Adopter'}! 🌱
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Track your bamboo adoptions and environmental impact
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold text-green-800 mb-2">
+                Welcome back, {user?.firstName || 'Bamboo Adopter'}! 🌱
+              </h1>
+              <p className="text-gray-600 text-lg">
+                Track your bamboo adoptions and environmental impact
+              </p>
+            </div>
+
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -134,7 +183,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Investment</p>
                 <p className="text-3xl font-bold text-blue-600">
-                  RM{userStats?.totalInvestment?.toFixed(2) || '0.00'}
+                  {CurrencyFormatter.format(userStats?.totalInvestment || 0)}
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -150,7 +199,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg per Plant</p>
                 <p className="text-3xl font-bold text-purple-600">
-                  RM{userStats?.averagePerPlant?.toFixed(2) || '0.00'}
+                  {CurrencyFormatter.format(userStats?.averagePerPlant || 0)}
                 </p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
@@ -195,7 +244,7 @@ export default function Dashboard() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Spent:</span>
-                      <span className="font-medium text-green-600">RM{analytics.totalSpent.toFixed(2)}</span>
+                      <span className="font-medium text-green-600">{CurrencyFormatter.format(analytics.totalSpent)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Period:</span>
@@ -212,19 +261,28 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl p-6 shadow-lg mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+            <button 
+              onClick={handleAdoptNewBamboo}
+              className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               <span>Adopt New Bamboo</span>
             </button>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+            <button 
+              onClick={handleViewReports}
+              className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               <span>View Reports</span>
             </button>
-            <button className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+            <button 
+              onClick={handleDownloadCertificateModal}
+              className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
               </svg>
@@ -234,7 +292,7 @@ export default function Dashboard() {
         </div>
 
         {/* My Bamboo Plants */}
-        <div className="bg-white rounded-xl p-6 shadow-lg">
+        <div ref={myBambooRef} className="bg-white rounded-xl p-6 shadow-lg">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">My Bamboo Plants</h2>
           
           {adoptions.length === 0 ? (
@@ -256,7 +314,7 @@ export default function Dashboard() {
                 <div key={adoption.adoption.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800">
-                      {adoption.plant?.plantCode || 'Unknown Plant'}
+                      {adoption.plant?.plantCode || adoption.plant?.species || 'Unknown Plant'}
                     </h3>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       adoption.plant?.status === 'growing' 
@@ -277,7 +335,7 @@ export default function Dashboard() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-blue-600">Price:</span>
-                        <span className="font-medium">RM{adoption.adoption.packageDetails?.price || '0'}</span>
+                        <span className="font-medium">{CurrencyFormatter.format(parseFloat(adoption.adoption.packageDetails?.price || '0') * 100)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-blue-600">Period:</span>
@@ -334,17 +392,133 @@ export default function Dashboard() {
                         {new Date(adoption.adoption.adoptionDate).toLocaleDateString()}
                       </span>
                     </div>
+                    {adoption.plant?.plantingDate && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Planted:</span>
+                        <span className="font-medium">
+                          {new Date(adoption.plant.plantingDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    {adoption.plant?.daysSincePlanting !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Days Growing:</span>
+                        <span className="font-medium text-green-600">
+                          {adoption.plant.daysSincePlanting} days
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subscription Until:</span>
+                      <span className="font-medium text-blue-600">
+                        {(() => {
+                          const adoptionDate = new Date(adoption.adoption.adoptionDate);
+                          const period = adoption.adoption.packageDetails?.period;
+                          let endDate = new Date(adoptionDate);
+                          
+                          if (period === 'monthly') {
+                            endDate.setMonth(endDate.getMonth() + 1);
+                          } else if (period === 'quarterly') {
+                            endDate.setMonth(endDate.getMonth() + 3);
+                          } else if (period === 'yearly') {
+                            endDate.setFullYear(endDate.getFullYear() + 1);
+                          }
+                          
+                          return endDate.toLocaleDateString();
+                        })()} 
+                      </span>
+                    </div>
                   </div>
                   
-                  <button className="w-full mt-4 bg-green-100 hover:bg-green-200 text-green-700 py-2 rounded-lg transition-colors">
-                    View Details
-                  </button>
+                  <div className="flex space-x-2 mt-4">
+                    {adoption.adoption.packageDetails?.period !== 'monthly' && (
+                      <button 
+                        onClick={() => router.push(`/subscription/${adoption.adoption.id}`)}
+                        className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-2 rounded-lg transition-colors"
+                      >
+                        View Details
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => downloadCertificate(adoption.adoption.id, adoption.plant?.plantCode || 'Unknown')}
+                      className={`${adoption.adoption.packageDetails?.period === 'monthly' ? 'w-full' : 'flex-1'} bg-blue-100 hover:bg-blue-200 text-blue-700 py-2 rounded-lg transition-colors flex items-center justify-center space-x-1`}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Certificate</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Certificate Download Modal */}
+      {showCertificateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Download Certificate</h3>
+              <button 
+                onClick={() => setShowCertificateModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-4">Select which certificate you would like to download:</p>
+            
+            <div className="space-y-3">
+              {adoptions.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No adoptions available for certificate download.</p>
+              ) : (
+                adoptions.map((adoption) => (
+                  <button
+                    key={adoption.adoption.id}
+                    onClick={() => {
+                      downloadCertificate(adoption.adoption.id, adoption.plant?.plantCode || 'Unknown');
+                      setShowCertificateModal(false);
+                    }}
+                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-medium text-gray-800">
+                          {adoption.plant?.plantCode || adoption.plant?.species || 'Unknown Plant'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {adoption.adoption.packageDetails?.name} - {adoption.adoption.locationDetails?.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Adopted: {new Date(adoption.adoption.adoptionDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+            
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => setShowCertificateModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
